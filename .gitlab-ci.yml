@@ -1,8 +1,8 @@
 image: python:3.8
 
 variables:
-  - PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
-  - PIPENV_CACHE_DIR: $CI_PROJECT_DIR/.cache/pipenv
+  PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
+  PIPENV_CACHE_DIR: $CI_PROJECT_DIR/.cache/pipenv
 
 before_script:
   - python3 --version
@@ -17,4 +17,4 @@ test:
   script:
     - pip install pipenv
     - pipenv install --dev
-    - pipenv run pytest
+    - PYTHONPATH=$(PWD):$PYTHONPATH pipenv run pytest
