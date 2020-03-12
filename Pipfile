@@ -8,6 +8,7 @@ pytest = "*"
 pylint = "*"
 msgpack = "*"
 autopep8 = "*"
+matplotlib = "*"
 
 [packages]
 numpy = "*"
