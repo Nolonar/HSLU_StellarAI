@@ -14,4 +14,3 @@ cd "%path%"
 goto :eof
 
 :eof2
-pause
