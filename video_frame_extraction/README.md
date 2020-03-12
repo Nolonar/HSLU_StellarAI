@@ -1,12 +1,21 @@
 Shoot videos, extract frames, train your Machine Learning model.
 
 ###Install
+
 - Download FFMPEG (https://ffmpeg.org/download.html)
-- Extract /bin/ffmpeg.exe (you don't need the rest)
+- Extract /bin/ffmpeg.exe (you don't need the rest) to the same folder as extractor.bat
 
 ###Run
-- Open cmd prompt where you extracted ffmpeg.exe
-- > .\ffmpeg -i IMG_0066.MOV -r 60/1 $filename%04d.jpg
-    - IMG_0066.MOV: name of video file
-    - 60/1: 1 second of video = 60 images
-    - %04d: uses 4 numbers for file name, appends 0s in front
+
+- Drag & drop video files on extractor.bat file
+    - The script will create a folder named after the video
+    - The folder will be in the same location as the video
+    - The images will be extracted to that folder
+
+###Config
+
+- The script can not be configured, so it must be edited instead
+- Look for the line that contains "ffmpeg"
+    - -r: framerate
+        - 60/1 -> 1 second of video produces 60 frames
+    - %%04d: How the frames will be named -> 4 numbers with leading zeroes
