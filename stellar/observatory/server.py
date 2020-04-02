@@ -8,26 +8,27 @@ from threading import Thread
 hostName = 'localhost'
 serverPort = 8080
 
-debug_data = None
+rootPath = os.path.join(pathlib.Path(__file__).parent, 'debug-ui')
+
+debug_data: dict = None
+is_server_running = True
 
 
 class RequestHandler(BaseHTTPRequestHandler):
-    rootPath = os.path.join(pathlib.Path(__file__).parent, 'debug-ui')
-
     routes = {
+        '/': lambda self: self.send_file('/index.html'),
         '/debug-data': lambda self: self.send_debug_data()
     }
 
     def do_GET(self):
         if self.path in self.routes:
             self.routes[self.path](self)
-            return
+        else:
+            self.send_file(self.path)
 
-        if self.path == '/':
-            self.path = '/index.html'
-
+    def send_file(self, path):
         try:
-            file_to_open = os.path.join(self.rootPath, self.path[1:])
+            file_to_open = os.path.join(rootPath, path[1:])
             content_to_send = open(file_to_open).read()
             self.send_response(200)
         except:
@@ -47,56 +48,34 @@ class RequestHandler(BaseHTTPRequestHandler):
     def get_debug_data(self):
         return debug_data
 
-        import random
-        import datetime
-        return {
-            'time': {
-                'current': datetime.datetime.now().time(),
-                'best': datetime.datetime.now().time()
-            },
-            'battery': 99,
-            'map': None,
-            'cameraFeed': None,
-            'sensorMech': {
-                'motor': random.randint(0, 1600),
-                'steering': random.randint(-90, 90)
-            },
-            'sensorElec': {
-                'cpu': {
-                    'load': [
-                        random.randint(0, 100),
-                        random.randint(0, 100),
-                        random.randint(0, 100),
-                        random.randint(0, 100)
-                    ],
-                    'temp': random.randint(0, 100)
-                },
-                'ram': random.randint(0, 100)
-            }
-        }
-
 
 def listen_to_socket():
+    global debug_data
+
     # AF_UNIX is a lightweight method for interprocess communication,
     # but it is only available on UNIX systems.
     # For testing on Windows, we can use INET as alternative.
     socket_address_family = getattr(socket, 'AF_UNIX', socket.AF_INET)
     address = (
-        '', 55555) if socket_address_family == socket.AF_INET else 'tmp/stellar/debug'
+        '', 55555) if socket_address_family == socket.AF_INET else 'tmp/stellar/perception/sensors'
 
     listener_socket = socket.socket(socket_address_family, socket.SOCK_STREAM)
     listener_socket.bind(address)
     listener_socket.listen()
 
-    while True:
-        client_socket, _ = listener_socket.accept()
-        debug_data = client_socket.recv(1024)
-        client_socket.close()
+    while is_server_running:
+        connection, _ = listener_socket.accept()
+        received_data = connection.recv(1024).decode('utf-8')
+        debug_data = json.loads(received_data)
+        connection.close()
 
 
 if __name__ == '__main__':
     Thread(target=listen_to_socket).start()
 
-    with ThreadingHTTPServer((hostName, serverPort), RequestHandler) as server:
-        print('Server listening on port: {}'.format(serverPort))
-        server.serve_forever()
+    try:
+        with ThreadingHTTPServer((hostName, serverPort), RequestHandler) as server:
+            print('Server listening on port: {}'.format(serverPort))
+            server.serve_forever()
+    except:
+        is_server_running = False

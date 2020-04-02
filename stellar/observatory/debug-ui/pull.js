@@ -24,6 +24,10 @@ function requestDebugData(callback) {
 }
 
 function updateUI(data) {
+    if (!data) {
+        return
+    }
+
     updateTime(data.time);
     updateBattery(data.battery);
     updateMap(data.map);
