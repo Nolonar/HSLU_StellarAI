@@ -64,10 +64,12 @@ def send_data_to_observatory(data: dict):
     address = (
         'localhost', 55555) if socket_address_family == socket.AF_INET else 'tmp/stellar/perception/sensors'
 
-    sender_socket = socket.socket(socket_address_family, socket.SOCK_STREAM)
-    sender_socket.connect(address)
-    sender_socket.sendall(json.dumps(data).encode('utf-8'))
-    sender_socket.close()
+    try:
+        with socket.socket(socket_address_family, socket.SOCK_STREAM) as sender_socket:
+            sender_socket.connect(address)
+            sender_socket.sendall(json.dumps(data).encode('utf-8'))
+    except:
+        pass  # Nobody's listening right now.
 
 
 class Sensors:
