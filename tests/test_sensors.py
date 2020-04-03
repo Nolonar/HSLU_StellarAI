@@ -7,7 +7,6 @@ import struct
 import pytest
 import numpy as np
 
-
 from stellar.perception.sensors import decode_blob, combine_messages, Sensors
 
 

@@ -7,8 +7,8 @@ verify_ssl = true
 pytest = "*"
 pylint = "*"
 msgpack = "*"
-autopep8 = "*"
 matplotlib = "*"
+pypng = "*"
 
 [packages]
 numpy = "*"
