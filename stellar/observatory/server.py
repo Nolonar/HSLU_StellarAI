@@ -1,9 +1,15 @@
 import json
 import os.path
 import pathlib
-import socket
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from threading import Thread
+
+DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(DIRECTORY))
+# workaround for autopep8 moving imports to the top.
+if 'listen_to' not in sys.modules:
+    from communication.listener import listen_to, MessageListener
+
 
 hostName = 'localhost'
 serverPort = 8080
@@ -11,7 +17,7 @@ serverPort = 8080
 rootPath = os.path.join(pathlib.Path(__file__).parent, 'debug-ui')
 
 debug_data: dict = None
-is_server_running = True
+message_listener: MessageListener
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -50,32 +56,21 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 
 def listen_to_socket():
+    global message_listener
+    message_listener = listen_to('perception/sensors', receive_debug_data)
+
+
+def receive_debug_data(data: dict):
     global debug_data
-
-    # AF_UNIX is a lightweight method for interprocess communication,
-    # but it is only available on UNIX systems.
-    # For testing on Windows, we can use INET as alternative.
-    socket_address_family = getattr(socket, 'AF_UNIX', socket.AF_INET)
-    address = (
-        '', 55555) if socket_address_family == socket.AF_INET else 'tmp/stellar/perception/sensors'
-
-    listener_socket = socket.socket(socket_address_family, socket.SOCK_STREAM)
-    listener_socket.bind(address)
-    listener_socket.listen()
-
-    while is_server_running:
-        connection, _ = listener_socket.accept()
-        received_data = connection.recv(1024).decode('utf-8')
-        debug_data = json.loads(received_data)
-        connection.close()
+    debug_data = data
 
 
 if __name__ == '__main__':
-    Thread(target=listen_to_socket).start()
+    listen_to_socket()
 
     try:
         with ThreadingHTTPServer((hostName, serverPort), RequestHandler) as server:
             print('Server listening on port: {}'.format(serverPort))
             server.serve_forever()
     except:
-        is_server_running = False
+        message_listener.stop()

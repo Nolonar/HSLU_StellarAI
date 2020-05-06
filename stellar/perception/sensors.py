@@ -54,22 +54,16 @@ def combine_messages(blobs: List[bytes]) -> bytes:
 def send_data_to_observatory(data: dict):
     """Sends data to observatory"""
 
-    import socket
-    import json
+    import sys
+    from os import path
 
-    # AF_UNIX is a lightweight method for interprocess communication,
-    # but it is only available on UNIX systems.
-    # For testing on Windows, we can use INET as alternative.
-    socket_address_family = getattr(socket, 'AF_UNIX', socket.AF_INET)
-    address = (
-        'localhost', 55555) if socket_address_family == socket.AF_INET else 'tmp/stellar/perception/sensors'
+    DIRECTORY = path.dirname(path.abspath(__file__))
+    sys.path.append(path.dirname(DIRECTORY))
+    # workaround for autopep8 moving imports to the top.
+    if 'send_message' not in sys.modules:
+        from communication.sender import send_message
 
-    try:
-        with socket.socket(socket_address_family, socket.SOCK_STREAM) as sender_socket:
-            sender_socket.connect(address)
-            sender_socket.sendall(json.dumps(data).encode('utf-8'))
-    except:
-        pass  # Nobody's listening right now.
+    send_message('perception/sensors', data)
 
 
 class Sensors:
