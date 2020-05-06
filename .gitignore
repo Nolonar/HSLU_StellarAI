@@ -49,5 +49,7 @@ testem.log
 Thumbs.db
 
 
-# src/environments/*.ts
+# custom
 video_frame_extraction/ffmpeg.exe
+tests/pylon_test_images/*
+tests/pylon_test_images_output/*
