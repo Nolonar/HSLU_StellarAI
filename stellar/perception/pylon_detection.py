@@ -11,7 +11,7 @@ ranges = [0, 180, 0, 255, 0, 255][:len(channels) * 2]
 step_x = 1
 step_y = 1
 
-threshold = 0.2
+threshold = 0.
 
 
 class PylonDetector:
@@ -45,10 +45,11 @@ class PylonDetector:
         pool.map(processRow, range(0, res_x, step_x))
 
         min_val, _, min_loc, _ = cv2.minMaxLoc(result)
-        print(min_val)
+        confidence = 1 - min_val
 
         return {
-            "is_found": min_val <= threshold,
+            "is_found": confidence >= threshold,
+            "confidence": confidence,
             "position_top_left": min_loc,
             "position_bottom_right": (
                 min_loc[0] + self.pylon.shape[1], min_loc[1] + self.pylon.shape[0])
