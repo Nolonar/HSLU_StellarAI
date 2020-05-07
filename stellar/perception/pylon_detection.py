@@ -4,7 +4,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 import cv2
 import numpy as np
 
-channels = [0, 1, 2]
+channels = [0, 1]
 hist_size = [180, 64, 8][:len(channels)]
 ranges = [0, 180, 0, 255, 0, 255][:len(channels) * 2]
 
