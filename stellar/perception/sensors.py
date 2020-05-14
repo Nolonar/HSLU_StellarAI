@@ -27,7 +27,8 @@ sys.path.append(path.dirname(DIRECTORY))
 # workaround for autopep8 moving imports to the top.
 if 'send_message' not in sys.modules:
     from communication.sender import send_message
-    from communication.listener import listen_to
+
+simulator = None
 
 
 def decode_blob(blob: bytes, fmt="=ffffii"):
@@ -72,7 +73,6 @@ class Sensors:
         self.device = device
         self.out_queue = out_queue
         self.fmt = fmt
-        self.current_camera_frame = None
 
     def read(self):
         """Reads and decodes sensor signals."""
@@ -81,9 +81,18 @@ class Sensors:
             values = decode_blob(blob, self.fmt)
             self.out_queue.put(values)
 
-    def receive_camera_data(self, data: dict):
-        print(data)
-        self.current_camera_frame = data['frame']
+    def get_image_data(self):
+        from pylon_detection import PylonDetector
+        import json
+        import base64
+
+        frame = simulator.current_frame
+        pylons_found = PylonDetector.find_pylons(frame)
+        image_out = PylonDetector.mark_pylons(frame, pylons_found)
+
+        json_encoded = json.dumps(image_out.tolist())
+
+        return base64.b64encode(json_encoded.encode('utf-8'))
 
     import datetime
     time_created = datetime.datetime.now()  # temp
@@ -92,6 +101,7 @@ class Sensors:
         """Returns mock data to be sent to observatory."""
         import random
         import datetime
+
         return {
             'time': {
                 'current': (datetime.datetime.now() - self.time_created).seconds * 1000,
@@ -99,7 +109,7 @@ class Sensors:
             },
             'battery': 99,
             'map': None,
-            'cameraFeed': None,
+            'cameraFeed': self.get_image_data(),
             'sensorMech': {
                 'motor': random.randint(0, 1600),
                 'steering': random.randint(-90, 90)
@@ -115,22 +125,23 @@ class Sensors:
                     'temp': random.randint(0, 100)
                 },
                 'ram': random.randint(0, 100)
-            },
-            'cameraFeed': self.current_camera_frame
+            }
         }
 
 
 if __name__ == '__main__':
+    from picam_simulator import Simulator
+    from threading import Thread
     import time
 
     sensors = Sensors(None, None)  # temporary
-    message_listener = listen_to(
-        'perception/camera', sensors.receive_camera_data)
+    simulator = Simulator("stellar/perception/cv_video_final.mp4")
+    Thread(target=simulator.run).start()
 
     while True:
         try:
-            time.sleep(1)
+            time.sleep(0.01)
             send_data_to_observatory(sensors.get_mock_data())
         except:
-            message_listener.stop()
+            simulator.stop()
             break

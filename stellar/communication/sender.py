@@ -1,5 +1,4 @@
 import json
-import socket
 
 from communication.common import get_socket_and_address
 

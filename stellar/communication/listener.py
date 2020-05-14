@@ -1,4 +1,3 @@
-import hashlib
 import json
 import socket
 from threading import Thread
@@ -19,10 +18,23 @@ class MessageListener:
         self.listener_socket.bind(address)
         self.listener_socket.listen()
 
+    @staticmethod
+    def receive_all(connection: socket) -> str:
+        all_data = []
+
+        while True:
+            received = connection.recv(8192)
+            if received:
+                all_data.append(received.decode('utf-8'))
+            else:
+                break
+
+        return ''.join(all_data)
+
     def run(self):
         while self.is_running:
             connection, _ = self.listener_socket.accept()
-            received_data = connection.recv(1024).decode('utf-8')
+            received_data = self.receive_all(connection)
             self.handler(json.loads(received_data))
             connection.close()
 

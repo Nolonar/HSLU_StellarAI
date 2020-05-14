@@ -52,7 +52,7 @@ function updateMap(map) {
 }
 
 function updateCameraFeed(cameraFeed) {
-    // TODO
+    document.getElementById('camera-feed').src = "data:image/bmp;base64," + cameraFeed;
 }
 
 function updateMotor(motor) {
