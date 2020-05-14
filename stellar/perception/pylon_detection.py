@@ -51,6 +51,14 @@ class PylonDetector:
             f"tests/pylon_test_images_output/{run_id}_{name}.jpg", image_out)
 
     @staticmethod
+    def compress_image(image):
+        """
+        Compresses image to JPG format.
+        """
+
+        return cv2.imencode(".jpg", image)
+
+    @staticmethod
     def mark_pylons(image, pylons_found):
         """
         Marks found pylons in image by drawing rectangles around them.

@@ -11,10 +11,10 @@ if 'listen_to' not in sys.modules:
     from communication.listener import listen_to, MessageListener
 
 
-hostName = 'localhost'
-serverPort = 8080
+host_name = 'localhost'
+server_port = 8080
 
-rootPath = os.path.join(pathlib.Path(__file__).parent, 'debug-ui')
+root_path = os.path.join(pathlib.Path(__file__).parent, 'debug-ui')
 
 debug_data: dict = None
 message_listener: MessageListener
@@ -34,7 +34,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def send_file(self, path):
         try:
-            file_to_open = os.path.join(rootPath, path[1:])
+            file_to_open = os.path.join(root_path, path[1:])
             content_to_send = open(file_to_open).read()
             self.send_response(200)
         except:
@@ -69,8 +69,8 @@ if __name__ == '__main__':
     listen_to_socket()
 
     try:
-        with ThreadingHTTPServer((hostName, serverPort), RequestHandler) as server:
-            print('Server listening on port: {}'.format(serverPort))
+        with ThreadingHTTPServer((host_name, server_port), RequestHandler) as server:
+            print('Server listening on port: {}'.format(server_port))
             server.serve_forever()
     except:
         message_listener.stop()

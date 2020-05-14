@@ -18,7 +18,16 @@ Multiple steps are performed read and parse UART messages:
 import io
 import queue
 import struct
+import sys
+from os import path
 from typing import List
+
+DIRECTORY = path.dirname(path.abspath(__file__))
+sys.path.append(path.dirname(DIRECTORY))
+# workaround for autopep8 moving imports to the top.
+if 'send_message' not in sys.modules:
+    from communication.sender import send_message
+    from communication.listener import listen_to
 
 
 def decode_blob(blob: bytes, fmt="=ffffii"):
@@ -53,16 +62,6 @@ def combine_messages(blobs: List[bytes]) -> bytes:
 
 def send_data_to_observatory(data: dict):
     """Sends data to observatory"""
-
-    import sys
-    from os import path
-
-    DIRECTORY = path.dirname(path.abspath(__file__))
-    sys.path.append(path.dirname(DIRECTORY))
-    # workaround for autopep8 moving imports to the top.
-    if 'send_message' not in sys.modules:
-        from communication.sender import send_message
-
     send_message('perception/sensors', data)
 
 
@@ -73,6 +72,7 @@ class Sensors:
         self.device = device
         self.out_queue = out_queue
         self.fmt = fmt
+        self.current_camera_frame = None
 
     def read(self):
         """Reads and decodes sensor signals."""
@@ -80,6 +80,10 @@ class Sensors:
         if blob:
             values = decode_blob(blob, self.fmt)
             self.out_queue.put(values)
+
+    def receive_camera_data(self, data: dict):
+        print(data)
+        self.current_camera_frame = data['frame']
 
     import datetime
     time_created = datetime.datetime.now()  # temp
@@ -111,7 +115,8 @@ class Sensors:
                     'temp': random.randint(0, 100)
                 },
                 'ram': random.randint(0, 100)
-            }
+            },
+            'cameraFeed': self.current_camera_frame
         }
 
 
@@ -119,7 +124,13 @@ if __name__ == '__main__':
     import time
 
     sensors = Sensors(None, None)  # temporary
+    message_listener = listen_to(
+        'perception/camera', sensors.receive_camera_data)
 
     while True:
-        time.sleep(1)
-        send_data_to_observatory(sensors.get_mock_data())
+        try:
+            time.sleep(1)
+            send_data_to_observatory(sensors.get_mock_data())
+        except:
+            message_listener.stop()
+            break

@@ -52,3 +52,4 @@ Thumbs.db
 # custom
 video_frame_extraction/ffmpeg.exe
 tests/pylon_test_images_output/*
+*.mp4

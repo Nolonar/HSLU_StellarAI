@@ -42,6 +42,12 @@ Aims to solve following problems:
 * Allowing introspection into the inner-workings of stellar
 * Forward information to the debug UI.
 
+#### How to run
+
+```sh
+$ pipenv run python stellar/observatory/server.py
+```
+
 
 ### Communication
 
