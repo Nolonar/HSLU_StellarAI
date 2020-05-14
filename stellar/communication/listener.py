@@ -4,6 +4,8 @@ import socket
 from threading import Thread
 from typing import Any, Callable
 
+from communication.common import get_socket_and_address
+
 
 class MessageListener:
     handler: Callable[[dict], Any]
@@ -13,17 +15,7 @@ class MessageListener:
     def __init__(self, sender_id: str, callback: Callable[[dict], Any]):
         self.handler = callback
 
-        windows_address = ('localhost', 55555)
-        unix_address = f'tmp/stellar/{sender_id}'
-
-        # AF_UNIX is a lightweight method for interprocess communication,
-        # but it is only available on UNIX systems.
-        # For testing on Windows, we can use INET as alternative.
-        socket_address_family = getattr(socket, 'AF_UNIX', socket.AF_INET)
-        address = windows_address if socket_address_family == socket.AF_INET else unix_address
-
-        self.listener_socket = socket.socket(
-            socket_address_family, socket.SOCK_STREAM)
+        self.listener_socket, address = get_socket_and_address(sender_id)
         self.listener_socket.bind(address)
         self.listener_socket.listen()
 
