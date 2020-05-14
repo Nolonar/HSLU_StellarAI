@@ -15,6 +15,9 @@ COLOR_SEGREGATION_COLOR_RADIUS = 40
 # The maximum hue [0, 179] we are looking for.
 THRESHOLD_HUE = 30
 
+# Debug only: used to give debug images unique names between different test of the same test run.
+run_id = 0
+
 
 class PylonDetector:
     @staticmethod
@@ -23,6 +26,43 @@ class PylonDetector:
         Loads image in HSV color space from specified path.
         """
         return cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2HSV)
+
+    @staticmethod
+    def write_image(image, path):
+        """
+        Writes image to sepcified path.
+        """
+
+        image_out = cv2.cvtColor(image, cv2.COLOR_HSV2BGR)
+
+        cv2.imwrite(path, image_out)
+
+    @staticmethod
+    def write_image_debug(image, name):
+        """
+        Debug only: writes a debug image with specified name.
+        """
+
+        image_out = image
+        if len(image.shape) == 3 and image.shape[2] == 3:
+            image_out = cv2.cvtColor(image_out, cv2.COLOR_HSV2BGR)
+
+        cv2.imwrite(
+            f"tests/pylon_test_images_output/{run_id}_{name}.jpg", image_out)
+
+    @staticmethod
+    def mark_pylons(image, pylons_found):
+        """
+        Marks found pylons in image by drawing rectangles around them.
+        """
+
+        for pylon in pylons_found:
+            pt1 = (pylon[0], pylon[1])
+            pt2 = (pt1[0] + pylon[2], pt1[1] + pylon[3])
+
+            cv2.rectangle(image, pt1, pt2, [120, 255, 255], 2)
+
+        return image
 
     @staticmethod
     def resize_image(image, max_size):
@@ -58,23 +98,32 @@ class PylonDetector:
         and 0 indicates a pixel not belonging to a pylon.
         """
         image_segregated = PylonDetector.segregate_colors(image)
+        PylonDetector.write_image_debug(image_segregated, "b_seg")
 
         image_bin = np.zeros(image.shape, dtype=np.uint8)
         image_bin[image_segregated[:, :, 0] < THRESHOLD_HUE] = 255
+        PylonDetector.write_image_debug(image_bin, "c_bin")
 
-        # Blur image to reduce noise.
-        image_blurred = cv2.GaussianBlur(image_bin, (5, 5), 0)
-        # Blur returns 3 channel image, we only want 1.
-        image_blurred = image_blurred[:, :, :1]
+        # Reduce noise
+        structuring_element = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        image_filtered = cv2.morphologyEx(
+            image_bin, cv2.MORPH_CLOSE, structuring_element, iterations=3)
+        image_filtered = image_filtered[:, :, :1]
+        PylonDetector.write_image_debug(image_filtered, "d_bin_filtered")
 
-        return cv2.threshold(image_blurred, 60, 255, cv2.THRESH_BINARY)[1]
+        return cv2.threshold(image_filtered, 60, 255, cv2.THRESH_BINARY)[1]
 
     @staticmethod
     def find_pylons(image):
+        global run_id
+        run_id += 1
+
         # Resize image to reduce computational strain.
         image_resized = PylonDetector.resize_image(image, MAX_IMAGE_SIZE)
+        PylonDetector.write_image_debug(image_resized, "a_resized")
 
         pylon_map = PylonDetector.get_pylon_map(image_resized)
+        PylonDetector.write_image_debug(pylon_map, "e_map")
 
         _, _, stats, _ = cv2.connectedComponentsWithStats(pylon_map)
 
