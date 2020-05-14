@@ -63,5 +63,5 @@ $ pipenv install --dev
 
 This project is using the pytest framework. To run the tests:
 ```sh
-$ pipenv run pytest tests/
+$ pipenv run python -m pytest tests/
 ```
