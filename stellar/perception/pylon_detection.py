@@ -1,56 +1,90 @@
-import os
-from multiprocessing.dummy import Pool as ThreadPool
-
 import cv2
 import numpy as np
 
-channels = [0, 1]
-hist_size = [180, 64, 8][:len(channels)]
-ranges = [0, 180, 0, 255, 0, 255][:len(channels) * 2]
+# The maximum size of the image to be processed.
+# Bigger images will be shrunk to match the size.
+# Smaller images will be left as is.
+MAX_IMAGE_SIZE = 300
 
-step_x = 1
-step_y = 1
+# How far two pixels can be to be considered neighbors.
+# Higher values increase computing time.
+COLOR_SEGREGATION_SPATIAL_RADIUS = 20
+# How far two colors can be to be considered similar.
+COLOR_SEGREGATION_COLOR_RADIUS = 40
 
-threshold = 0.
+# The maximum hue [0, 179] we are looking for.
+THRESHOLD_HUE = 30
 
 
 class PylonDetector:
-    def __init__(self):
-        self.pylon = cv2.cvtColor(cv2.imread(
-            'stellar/perception/pylon.jpg'), cv2.COLOR_BGR2HSV)
-        self.hist_pylon = cv2.calcHist(
-            [self.pylon], channels, None, hist_size, ranges)
+    @staticmethod
+    def load_image(path):
+        """
+        Loads image in HSV color space from specified path.
+        """
+        return cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2HSV)
 
-    def find_pylon(self, image):
-        pool = ThreadPool(os.cpu_count())
+    @staticmethod
+    def resize_image(image, max_size):
+        """
+        Resizes image while preserving aspect ratio.
+        Width and height are guaranteed to be equal to
+        or smaller than max_size.
+        """
+        x_res = image.shape[1]
+        y_res = image.shape[0]
 
-        res_x = image.shape[0] - self.pylon.shape[0]
-        res_y = image.shape[1] - self.pylon.shape[1]
+        x_factor = max_size / x_res
+        y_factor = max_size / y_res
+        factor = min([x_factor, y_factor])
 
-        result = np.ones(image.shape[:2])
+        x_res_new = int(x_res * factor)
+        y_res_new = int(y_res * factor)
 
-        def processRow(x: int):
-            row = np.ones(image.shape[1])
-            for y in range(0, res_y, step_y):
-                image_part = image[x: x + self.pylon.shape[0],
-                                   y: y + self.pylon.shape[1]]
-                hist_part = cv2.calcHist(
-                    [image_part], channels, None, hist_size, ranges)
+        return cv2.resize(image, (x_res_new, y_res_new))
 
-                row[y] = cv2.compareHist(
-                    self.hist_pylon, hist_part, cv2.HISTCMP_BHATTACHARYYA)
+    @staticmethod
+    def segregate_colors(image):
+        """
+        Segregates colors from image to simplify object recognition.
+        """
+        return cv2.pyrMeanShiftFiltering(image, COLOR_SEGREGATION_SPATIAL_RADIUS, COLOR_SEGREGATION_COLOR_RADIUS)
 
-            result[x, :] = row
+    @staticmethod
+    def get_pylon_map(image):
+        """
+        Produces a map of the same dimension and size as image,
+        where 1 indicates a pixel belonging to a pylon,
+        and 0 indicates a pixel not belonging to a pylon.
+        """
+        image_segregated = PylonDetector.segregate_colors(image)
 
-        pool.map(processRow, range(0, res_x, step_x))
+        image_bin = np.zeros(image.shape, dtype=np.uint8)
+        image_bin[image_segregated[:, :, 0] < THRESHOLD_HUE] = 255
 
-        min_val, _, min_loc, _ = cv2.minMaxLoc(result)
-        confidence = 1 - min_val
+        # Blur image to reduce noise.
+        image_blurred = cv2.GaussianBlur(image_bin, (5, 5), 0)
+        # Blur returns 3 channel image, we only want 1.
+        image_blurred = image_blurred[:, :, :1]
 
-        return {
-            "is_found": confidence >= threshold,
-            "confidence": confidence,
-            "position_top_left": min_loc,
-            "position_bottom_right": (
-                min_loc[0] + self.pylon.shape[1], min_loc[1] + self.pylon.shape[0])
-        }
+        return cv2.threshold(image_blurred, 60, 255, cv2.THRESH_BINARY)[1]
+
+    @staticmethod
+    def find_pylons(image):
+        # Resize image to reduce computational strain.
+        image_resized = PylonDetector.resize_image(image, MAX_IMAGE_SIZE)
+
+        pylon_map = PylonDetector.get_pylon_map(image_resized)
+
+        _, _, stats, _ = cv2.connectedComponentsWithStats(pylon_map)
+
+        # Ignore first element (background)
+        # Keep only first 4 stats (position & dimension)
+        result = stats[1:, :4]
+
+        # Scale coordinates and dimensions back to original image size.
+        factor = image.shape[0] / image_resized.shape[0]
+        # Since array is uint8 but factor is float32, we can't use the *= operator.
+        result[:, :] = result[:, :] * factor
+
+        return result
