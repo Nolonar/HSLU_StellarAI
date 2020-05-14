@@ -1,6 +1,7 @@
-import hashlib
 import json
 import socket
+
+from communication.common import get_socket_and_address
 
 
 def send_message(sender_id: str, message: dict) -> bool:
@@ -9,17 +10,9 @@ def send_message(sender_id: str, message: dict) -> bool:
     Returns False if nobody is listening, True otherwise.
     """
 
-    windows_address = ('localhost', 55555)
-    unix_address = f'tmp/stellar/{sender_id}'
-
-    # AF_UNIX is a lightweight method for interprocess communication,
-    # but it is only available on UNIX systems.
-    # For testing on Windows, we can use INET as alternative.
-    socket_address_family = getattr(socket, 'AF_UNIX', socket.AF_INET)
-    address = windows_address if socket_address_family == socket.AF_INET else unix_address
-
+    socket, address = get_socket_and_address(sender_id)
     try:
-        with socket.socket(socket_address_family, socket.SOCK_STREAM) as sender_socket:
+        with socket as sender_socket:
             sender_socket.connect(address)
             sender_socket.sendall(json.dumps(message).encode('utf-8'))
 
