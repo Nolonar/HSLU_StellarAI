@@ -28,7 +28,7 @@ sys.path.append(path.dirname(DIRECTORY))
 if 'send_message' not in sys.modules:
     from communication.sender import send_message
 
-simulator = None
+picam_sim = None
 
 
 def decode_blob(blob: bytes, fmt="=ffffii"):
@@ -86,7 +86,10 @@ class Sensors:
         import json
         import base64
 
-        frame = simulator.current_frame
+        frame = picam_sim.current_frame
+        if (frame is None):
+            return None
+
         pylons_found = PylonDetector.find_pylons(frame)
         image_out = PylonDetector.mark_pylons(frame, pylons_found)
 
@@ -130,18 +133,17 @@ class Sensors:
 
 
 if __name__ == '__main__':
-    from picam_simulator import Simulator
+    from picam_simulator import PicamSimulator
     from threading import Thread
     import time
 
     sensors = Sensors(None, None)  # temporary
-    simulator = Simulator("stellar/perception/cv_video_final.mp4")
-    Thread(target=simulator.run).start()
+    picam_sim = PicamSimulator("stellar/perception/cv_video_final.mp4")
+    Thread(target=picam_sim.run).start()
 
-    while True:
+    while picam_sim.is_running:
         try:
-            time.sleep(0.01)
             send_data_to_observatory(sensors.get_mock_data())
         except:
-            simulator.stop()
-            break
+            picam_sim.stop()
+            raise

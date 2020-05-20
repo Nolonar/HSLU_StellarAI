@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 
-class Simulator:
+class PicamSimulator:
     is_running: bool = True
     stream: cv2.VideoCapture = None
     current_frame = None
