@@ -3,11 +3,24 @@ Stellar CLI.
 
 Currently used for demo and experimenting purposes.
 """
-import numpy as np
-import matplotlib.pyplot as plt
+import argparse
+import sys
+from time import time
+from enum import Enum
 
-from stellar.models.gridmap import OccupancyGridMap
+import numpy as np
+from roboviz import MapVisualizer
+from skimage.transform import resize
+from bresenham import bresenham
+
+from stellar.action import motion
+from stellar.cognition import mapping
 from stellar.models.astar import AStarPlanner
+from stellar.models.gridmap import OccupancyGridMap
+from stellar.models.robot import Robot
+from stellar.perception import sensors
+from stellar.perception.sensors import SensorArray
+from stellar.simulation.data import load_world, png_to_ogm
 
 VERSION = "0.0.1"
 HEADER = r"""
@@ -25,82 +38,199 @@ print(HEADER, end='')
 print(65*'=')
 
 
-def detect_collision(position, grid, radius=20, threshold=0.8):
-    """Simple collision detection.
+# World parameters
+MAP_SIZE_PIXELS = 200
+MAP_SIZE_METERS = 20
+SPEED_MPS = 0.5
 
-    Looks in the direction of the robot (ahead, angle) to check for the
-    presence of obstacles.
 
-    Args:
-        position: Tuple containing the robots current position (y, x)
-        grid: Current world (OccupancyGridMap)
-        radius: Detection radius
-        threshold: Obstacle / grid occupancy threshold
+class MODE(Enum):
+    WALL_FOLLOW = 1
+
+
+def main(parcours_filename):
+
+    # Create a MapVisualizer to track the robots behaviour
+    viz = MapVisualizer(MAP_SIZE_PIXELS, MAP_SIZE_METERS,
+                        'StellarAI Visualization', True)
+
+    # Load preconstructed environment / world
+    mapbytes = np.array(png_to_ogm(parcours_filename, normalized=True))
+
+    mapbytes = resize(mapbytes, (MAP_SIZE_PIXELS, MAP_SIZE_PIXELS))
+    occupancy_grid_map = np.zeros(mapbytes.shape)
+
+    # Sonar configuration: three sensors are mounted on the roboter
+    # each facing a different direction: left, ahead and right. Further,
+    # each sonar sensor has an opening angle of 15 degress.
+    #
+    # Maximum capacity is set to 8 meters.
+    z_max = int(4 / viz.map_scale_meters_per_pixel)
+    sonar_opening_angle = np.deg2rad(15)
+    sensors = SensorArray(z_max)
+
+    # Three sonar sensors are mounted on the robot, each facing another
+    # direction, with their respective relative angles to the robots
+    # driving direction (-90°, 0°, +90°)
+    # sonar_bearing_angles = np.array([(1/2)*np.pi, 0, -(1/2)*np.pi])
+    # TODO: sonar_bearing_angles = np.array([np.deg2rad(-90), 0, np.deg2rad(90)])
+
+    # Initialize our robot with an initial pose
+    robot = Robot()
+    robot.set(2, 2, 90)
+
+    # Record the history of the robot
+    robot_history = list()
+
+    # Start timing
+    prevtime = time()
+
+    change_direction = 0
+
+    mode = MODE.WALL_FOLLOW
+
+    # Enter main loop
+    step = 0
+    print("=> Driving in Mode: ", mode.name)
+
+    pylons = [
+        (5.0, 7.5),
+        (7.5, 15.0),
+        (15.0, 15.0),
+        (12.5, 10.0),
+        (10.0, 6.0)
+    ]
+
+    while True:
+        step += 1
+
+        occupancy_grid_map = connect_pylons(
+            pylons, occupancy_grid_map, viz.map_scale_meters_per_pixel)
+        if not viz.display(robot, occupancy_grid_map, mapping.LOG_ODD_MIN, mapping.LOG_ODD_MAX):
+            with open(f"logs/ogm_savefile_{step}.np", 'wb+') as fd:
+                np.save(fd, occupancy_grid_map)
+            exit(0)
+
+        currtime = time()
+        s = SPEED_MPS * (currtime - prevtime)
+        prevtime = currtime
+
+        # Set new pose
+        if change_direction:
+            new_direction = robot.theta + change_direction
+        else:
+            new_direction = robot.theta
+
+        robot = robot.move(s, new_direction)
+
+        # Display the pylons
+        [viz.show_pylon((x, y)) for x, y in pylons]
+        # Capture distance measurements from sonar sensors
+
+        # Get current position in grid (pixel/cell wise)
+        map_pose = robot.pose_in_grid(viz.map_scale_meters_per_pixel)
+        distance_measurements = sensors.sense(mapbytes, map_pose)
+
+        # Update occupancy grid map with new information
+        for angle, measurement in distance_measurements:
+            occupancy_grid_map = mapping.update_occupancy_map(
+                occupancy_grid_map,
+                map_pose,
+                measurement,
+                angle,
+                sonar_opening_angle,
+                z_max
+            )
+
+        # Update robots pose
+        if mode == MODE.WALL_FOLLOW:
+            front, left, right = [distance * viz.map_scale_meters_per_pixel
+                                  for _, distance in distance_measurements]
+            change_direction = follow_wall(front, left, right)
+
+    # Postprocessing
+
+
+def connect_pylons(positions, occupancy_grid_map, scale):
+    for index, position in enumerate(positions):
+        next_index = (index + 1) % len(positions)
+        next_element = positions[next_index]
+
+        x1 = int(position[0] / scale)
+        y1 = int(position[1] / scale)
+        x2 = int(next_element[0] / scale)
+        y2 = int(next_element[1] / scale)
+        for x, y in bresenham(x1, y1, x2, y2):
+            occupancy_grid_map[y, x] = mapping.LOG_ODD_MAX
+
+    return occupancy_grid_map
+
+
+def follow_wall(front, left, right):
+    """Simple wall follower procedure.
 
     Returns:
-        The x and y coordinates of the detected obstacles.
+        Change in direction.
 
     """
-    y, x = position
+    change_direction = 0
 
-    up      = grid.world[y:y+radius, x]
-    down    = grid.world[y-radius:y, x]
-    right   = grid.world[y, x:x+radius]
-    left    = grid.world[y, x-radius:x]
+    F = (0 < front < 4)
+    L = (0 < left < 4)
+    R = (0 < right < 4)
 
-    # Return the index of the detected obstacles (i.e. occupied cell).
-    return (
-        np.argmax(up >= 0.8),
-        np.argmax(right >= 0.8),
-        np.argmax(left >= 0.8),
-        np.argmax(down >= 0.8)
-    )
+    print("=> front", front)
+    print("=> left", left)
+    print("=> right", right)
+    print("-----")
 
+    if 0 < front < 3:
+        change_direction = -10
+    elif 1.0 <= left <= 2.0:
+        # we're good
+        change_direction = 0
+    elif 0 < left < 1.0:
+        change_direction = -10
+    elif left > 2.0:
+        change_direction = 10
 
-def main():
-    # Enable interactive plots
-    plt.ion()
+    return change_direction
 
-    # Robots dimensions (simple, for now)
-    dim_robot = 20
-    
-    # start (y, x)
-    start_pos = (50, 200)
+    # elif (F and L):
+    #    change_direction = -30
 
-    # Build gridmap (our world) from a pre-designed map
-    # grid = OccupancyGridMap.from_png("tests/maps/example_map_occupancy.png", 1)
-    grid = OccupancyGridMap.from_png("tests/maps/track.png", 1)
+    # robot_history.append(robot)
 
-    # Place robot in the world
-    grid.world[start_pos[0]:start_pos[0] + dim_robot,
-               start_pos[1]:start_pos[1] + dim_robot] = 1
+    # TODO
+    # distance_measurements = [sensors.sense_distance(world, pose, angle, z_max=z_max)
+    #                          for angle in sonar_bearing_angles]
 
-    step_size = 5
-    current_pos = start_pos
-    for step in range(50):
-        y, x = current_pos
+    # for i, distance in enumerate(distance_measurements):
+    #     if distance == -1 or distance > z_max:
+    #         continue
 
-        next_y, next_x = (step_size + y), (step_size + x)
+    #     occupancy_map = update_occupancy_map(
+    #         occupancy_map, pose, distance, sonar_bearing_angles[i], sonar_opening_angle, z_max)
 
-        # Reset visited pixels
-        grid.world[y:y+dim_robot, x:x+dim_robot] = 0
+    # occupancy_map = np.clip(
+    #     occupancy_map, a_max=LOG_ODD_MAX / 10, a_min=LOG_ODD_MIN / 10)
 
+    # 3D Plot
+    # data = occupancy_map
+    # X, Y = np.meshgrid(x, y)
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.plot_surface(X, Y, data, rstride=1, cstride=1)
+    # plt.show(block=True)
 
-        obstacles = detect_collision((next_y, next_x), grid)
-        if sum(obstacles) > 0:
-            print("Detected obstacles at:", obstacles)
-        
-        # Marks robots new cells
-        grid.world[next_y:next_y+dim_robot, next_x:next_x+dim_robot] = 1
-        current_pos = (next_y, next_x)
-        
-        grid.plot()
-        plt.pause(0.0001)
-        plt.clf()
-
-    grid.plot()
-    plt.show(block=True)
-    plt.show()
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--parcours",
+                        help="Path to parcours image.")
+    args = parser.parse_args()
+
+    try:
+        main(args.parcours)
+    except KeyboardInterrupt:
+        sys.exit(1)

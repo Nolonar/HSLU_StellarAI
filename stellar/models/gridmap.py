@@ -54,4 +54,10 @@ class OccupancyGridMap:
         """
         ogm_data = png_to_ogm(filename, normalized=True)
         ogm_data_arr = np.array(ogm_data)
+        #where_0 = np.where(ogm_data_arr == 0)
+        #where_1 = np.where(ogm_data_arr == 1)
+
+        #ogm_data_arr[where_0] = 1
+        #ogm_data_arr[where_1] = 0
+
         return OccupancyGridMap(ogm_data_arr, cell_size)
