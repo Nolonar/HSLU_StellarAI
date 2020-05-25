@@ -9,9 +9,19 @@ pylint = "*"
 msgpack = "*"
 matplotlib = "*"
 pypng = "*"
+jupyter = "*"
 
 [packages]
 numpy = "*"
+tqdm = "*"
+bresenham = "*"
+stellarai = {editable = true,path = "."}
+matplotlib = "*"
+scipy = "*"
+roboviz = {editable = true,path = "./PyRoboViz"}
+skimage = "*"
+scikit-image = "*"
+pypng = "*"
 
 [requires]
 python_version = "3.8"
