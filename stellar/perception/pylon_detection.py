@@ -13,7 +13,8 @@ COLOR_SEGREGATION_SPATIAL_RADIUS = 20
 COLOR_SEGREGATION_COLOR_RADIUS = 40
 
 # The maximum hue [0, 179] we are looking for.
-THRESHOLD_HUE = 30
+THRESHOLD_HSV_MAX = np.array([30, 255, 255])
+THRESHOLD_HSV_MIN = np.array([0, 0, 50])
 
 # Debug only: used to give debug images unique names between different test of the same test run.
 run_id = 0
@@ -56,13 +57,14 @@ class PylonDetector:
         Marks found pylons in image by drawing rectangles around them.
         """
 
+        image_out = np.copy(image)
         for pylon in pylons_found:
             pt1 = (pylon[0], pylon[1])
             pt2 = (pt1[0] + pylon[2], pt1[1] + pylon[3])
 
-            cv2.rectangle(image, pt1, pt2, [120, 255, 255], 2)
+            cv2.rectangle(image_out, pt1, pt2, [0, 255, 255], 2)
 
-        return image
+        return image_out
 
     @staticmethod
     def resize_image(image, max_size):
@@ -100,15 +102,14 @@ class PylonDetector:
         image_segregated = PylonDetector.segregate_colors(image)
         PylonDetector.write_image_debug(image_segregated, "b_seg")
 
-        image_bin = np.zeros(image.shape, dtype=np.uint8)
-        image_bin[image_segregated[:, :, 0] < THRESHOLD_HUE] = 255
+        image_bin = cv2.inRange(
+            image_segregated, THRESHOLD_HSV_MIN, THRESHOLD_HSV_MAX)
         PylonDetector.write_image_debug(image_bin, "c_bin")
 
         # Reduce noise
         structuring_element = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
         image_filtered = cv2.morphologyEx(
             image_bin, cv2.MORPH_CLOSE, structuring_element, iterations=3)
-        image_filtered = image_filtered[:, :, :1]
         PylonDetector.write_image_debug(image_filtered, "d_bin_filtered")
 
         return cv2.threshold(image_filtered, 60, 255, cv2.THRESH_BINARY)[1]
