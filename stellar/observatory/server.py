@@ -1,3 +1,4 @@
+import base64
 import json
 import os.path
 import pathlib
@@ -32,9 +33,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         else:
             self.send_file(self.path)
 
+    def get_absolute_path_from_relative(self, path):
+        return os.path.join(root_path, path[1:])
+
     def send_file(self, path):
         try:
-            file_to_open = os.path.join(root_path, path[1:])
+            file_to_open = self.get_absolute_path_from_relative(path)
             content_to_send = open(file_to_open).read()
             self.send_response(200)
         except:
@@ -52,7 +56,21 @@ class RequestHandler(BaseHTTPRequestHandler):
             bytes(json.dumps(self.get_debug_data(), default=str), 'utf-8'))
 
     def get_debug_data(self):
+        global debug_data
+        if (debug_data is not None):
+            debug_data["cameraFeed"] = self.get_camera_data()
+
         return debug_data
+
+    def get_camera_data(self):
+        try:
+            frame_path = self.get_absolute_path_from_relative(
+                "/current-frame.jpg")
+            return base64.b64encode(
+                open(frame_path, "rb").read()).decode("utf-8")
+        except Exception as e:
+            print(e)
+            return None
 
 
 def listen_to_socket():

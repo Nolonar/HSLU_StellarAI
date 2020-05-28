@@ -51,5 +51,6 @@ Thumbs.db
 
 # custom
 video_frame_extraction/ffmpeg.exe
+stellar/observatory/debug-ui/current-frame.jpg
 tests/pylon_test_images_output/*
 *.mp4

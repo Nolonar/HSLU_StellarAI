@@ -34,6 +34,10 @@ meter {
   padding: 0 0.2em;
 }
 
+#camera-feed {
+  max-width: 100%;
+}
+
 #sensors-mechanical,
 #sensors-electrical {
   padding: 0.2em;
