@@ -81,7 +81,7 @@ class Sensors:
             values = decode_blob(blob, self.fmt)
             self.out_queue.put(values)
 
-    def get_image_data(self):
+    def write_observatory_camera_feed(self):
         from pylon_detection import PylonDetector
         import json
         import base64
@@ -92,10 +92,8 @@ class Sensors:
 
         pylons_found = PylonDetector.find_pylons(frame)
         image_out = PylonDetector.mark_pylons(frame, pylons_found)
-
-        json_encoded = json.dumps(image_out.tolist())
-
-        return base64.b64encode(json_encoded.encode('utf-8'))
+        PylonDetector.write_image(
+            image_out, "stellar/observatory/debug-ui/current-frame.jpg")
 
     import datetime
     time_created = datetime.datetime.now()  # temp
@@ -105,6 +103,7 @@ class Sensors:
         import random
         import datetime
 
+        self.write_observatory_camera_feed()
         return {
             'time': {
                 'current': (datetime.datetime.now() - self.time_created).seconds * 1000,
@@ -112,7 +111,6 @@ class Sensors:
             },
             'battery': 99,
             'map': None,
-            'cameraFeed': self.get_image_data(),
             'sensorMech': {
                 'motor': random.randint(0, 1600),
                 'steering': random.randint(-90, 90)
