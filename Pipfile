@@ -21,6 +21,7 @@ scipy = "*"
 scikit-image = "*"
 pypng = "*"
 hypothesis = "*"
+pytest = "*"
 
 [requires]
 python_version = "3.8"
