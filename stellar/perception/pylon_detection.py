@@ -289,4 +289,4 @@ class PylonDetector:
     @staticmethod
     def get_distance_estimation(image_height: int, pylon_height: int) -> float:
         pylon_height_rate = float(pylon_height) / float(image_height)
-        return 1 / pylon_height_rate * DISTANCE_ESTIMATE_MAGIC_NUMBER
+        return DISTANCE_ESTIMATE_MAGIC_NUMBER / pylon_height_rate
