@@ -1,3 +1,4 @@
+import math
 from typing import List
 
 import cv2
@@ -33,12 +34,15 @@ EDGE_DETECT_THRESHOLD_STRONG = 350
 # The color in HSV we expect a pylon to be. H value is in range [0, 179] and may be negative.
 PYLON_COLOR_ORANGE_THRESHOLD = np.array([[-20, 127, 127],  # MIN
                                          [15, 255, 255]])  # MAX
-PYLON_COLOR_WHITE_THRESHOLD = np.array([[-20, 0, 170],     # MIN
-                                        [15, 70, 255]])   # MAX
+PYLON_COLOR_WHITE_THRESHOLD = np.array([[-20, 0, 180],     # MIN
+                                        [15, 70, 255]])    # MAX
 
 # The colors in HSV with which to mark the pylons.
 MARKING_COLOR_START_PYLON = [30, 255, 255]
 MARKING_COLOR_REGULAR_PYLON = [0, 255, 255]
+
+# Used for distance estimation. Determined through measurement.
+DISTANCE_ESTIMATE_MAGIC_NUMBER = 80.0 / 2.8
 
 # Debug only: used to give debug images unique names between different test of the same test run.
 run_id = 0
@@ -49,6 +53,7 @@ class Pylon:
     position = (0, 0)
     width = 0
     height = 0
+    estimated_distance_cm = 0
     is_start_pylon = False
 
     def __init__(self, x, y, width, height):
@@ -105,6 +110,10 @@ class PylonDetector:
             color = MARKING_COLOR_START_PYLON if pylon.is_start_pylon else MARKING_COLOR_REGULAR_PYLON
 
             cv2.rectangle(image_out, pt1, pt2, color, 2)
+
+            text_pt = tuple(np.add(pt1, (5, 30)))
+            cv2.putText(image_out, f"{pylon.estimated_distance_cm:3.1f} cm", text_pt,
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
 
         return image_out
 
@@ -254,9 +263,10 @@ class PylonDetector:
         run_id += 1
         step_id = 0
 
-        pylons = PylonDetector.get_potential_pylons(image)
+        pylons = [p for p in PylonDetector.get_potential_pylons(image)
+                  if PylonDetector.has_proper_size_ratio(p)]
 
-        pylons = [p for p in pylons if PylonDetector.has_proper_size_ratio(p)]
+        PylonDetector.set_distance_estimation(image.shape[0], pylons)
 
         return pylons
 
@@ -268,3 +278,14 @@ class PylonDetector:
             ratio = 1 / ratio
 
         return ratio >= PYLON_RATIO_RANGE[0] and ratio <= PYLON_RATIO_RANGE[1]
+
+    @staticmethod
+    def set_distance_estimation(image_height: int, pylons: List[Pylon]):
+        for pylon in pylons:
+            pylon.estimated_distance_cm = PylonDetector.get_distance_estimation(
+                image_height, pylon.height)
+
+    @staticmethod
+    def get_distance_estimation(image_height: int, pylon_height: int) -> float:
+        pylon_height_rate = float(pylon_height) / float(image_height)
+        return 1 / pylon_height_rate * DISTANCE_ESTIMATE_MAGIC_NUMBER
