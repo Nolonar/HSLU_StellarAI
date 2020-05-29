@@ -15,6 +15,26 @@ class Robot:
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0
+        self.total_distance_covered = 0.0
+
+    def in_goal(self, goal, proximity=0.0, min_distance=-1.0):
+        """
+        Check whether robot has reached its goal.
+
+        Args:
+            goal: x- and y coordinates of the goal position.
+            proximity: Proximity to the goal position.
+            min_distance: Minimum distance covered by the robot before
+                          being eligible
+        """
+        if self.total_distance_covered < min_distance:
+            return False
+
+        xg, yg = goal
+
+        x_in_goal = xg - proximity <= self.x <= xg + proximity
+        y_in_goal = yg - proximity <= self.y <= yg + proximity
+        return x_in_goal and y_in_goal
 
     def pose_in_grid(self, scale):
         """Converts the pose to the current position in the gridmap."""
@@ -43,7 +63,9 @@ class Robot:
         if distance < 0.0:
             distance = 0.0
 
-        self.theta += direction
+        self.total_distance_covered += distance
+
+        self.theta = (self.theta + direction) % (2.0 * np.pi)
         self.x = self.x + (np.cos(self.theta) * distance)
         self.y = self.y + (np.sin(self.theta) * distance)
 

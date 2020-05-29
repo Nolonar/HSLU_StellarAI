@@ -21,13 +21,11 @@ class SensorArray:
 
         """
         self.z_max = z_max
+        self.sonar_opening_angle = np.radians(15)
 
     def sense(self, world, map_pose):
         """Returns current sensor measurements about the world."""
-#        map_pose = (robot.x, robot.y, robot.theta)
-
         measurements = list()
-
         for _, sonar_angle in self.sonar_sensors:
             distance = sense_distance(
                 world, map_pose, sonar_angle, z_max=self.z_max)

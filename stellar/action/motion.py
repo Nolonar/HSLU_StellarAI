@@ -2,6 +2,27 @@ import numpy as np
 from math import ceil
 
 
+def follow_wall(front, left, right):
+    """Simple follow wall controller."""
+    change_direction = 0
+
+    F = (0 < front < 4)
+    L = (0 < left < 4)
+    R = (0 < right < 4)
+
+    if 0 < front < 3:
+        change_direction = -10
+    elif 1.0 <= left <= 2.0:
+        # we're good
+        change_direction = 0
+    elif 0 < left < 1.0:
+        change_direction = -10
+    elif left > 2.0:
+        change_direction = 10
+
+    return change_direction
+
+
 def move(pose, number_of_steps, direction):
     """Move the robot in the world.
 

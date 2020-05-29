@@ -13,22 +13,6 @@ from stellar.cognition.planning import GridPlaner
 from stellar.models.robot import Robot
 
 
-def connect_pylons(positions, occupancy_grid_map):
-    for index, position in enumerate(positions):
-        next_index = (index + 1) % len(positions)
-        next_element = positions[next_index]
-
-        x1 = int(position[0])
-        y1 = int(position[1])
-        x2 = int(next_element[0])
-        y2 = int(next_element[1])
-        for x, y in bresenham(x1, y1, x2, y2):
-            occupancy_grid_map[y, x] = mapping.LOG_ODD_MAX
-            occupancy_grid_map[y+1, x] = mapping.LOG_ODD_MAX
-            occupancy_grid_map[y, x+1] = mapping.LOG_ODD_MAX
-
-    return occupancy_grid_map
-
 
 def dist(a, b):
     """Euclidian Distance between two points"""
@@ -49,7 +33,7 @@ def main(mapfile):
         (60, 50)
     ]
 
-    occupancy_grid_map = connect_pylons(pylons, occupancy_grid_map)
+    occupancy_grid_map = mapping.connect_pylons(pylons, occupancy_grid_map)
 
     planner = GridPlaner()
 
@@ -90,8 +74,6 @@ def main(mapfile):
     plt.imshow(occupancy_grid_map, origin='lower', cmap='gray')
     #plt.plot(25, 25, marker='o')
     plt.show(block=True)
-
-    return
 
     # Robot
     robot = Robot()
@@ -154,7 +136,7 @@ def run(robot, reference, tau_p, tau_d, tau_i, n=100, speed=1.0):
         steer = np.radians(steer)
         #print("=>", steer)
         # print(steer)
-        robot = robot.move(speed, steer)
+        robot.move(speed, steer)
         err += crosstrack_error
 
         x_trajectory.append(robot.x)

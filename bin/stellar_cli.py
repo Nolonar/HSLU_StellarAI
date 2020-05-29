@@ -48,6 +48,77 @@ class MODE(Enum):
     WALL_FOLLOW = 1
 
 
+def store_simulation_data_at_step(step, occupancy_grid_map):
+    with open(f"logs/ogm_savefile_{step}.np", 'wb+') as fd:
+        np.save(fd, occupancy_grid_map)
+
+
+def is_in_goal(robot, goal):
+    """
+    Checks wether robot is in goal.
+    """
+    # Should robots orientation matter too?
+    #goal = (0, 0, np.radians(90))
+    xg, yg, tg = goal
+
+    orientation_near_goal = (np.radians(100) <= robot.theta <= np.radians(80))
+    x_position_near_goal = (xg - 1 <= robot.x <= xg + 1)
+    y_position_near_goal = (yg - 1 <= robot.y <= yg + 1)
+    print(robot, goal)
+    return (orientation_near_goal and x_position_near_goal and y_position_near_goal)
+
+
+def simulate_learning_mode(robot: Robot, world: np.ndarray, sensors: SensorArray,
+                           scale: float, visualization: MapVisualizer = None):
+    """
+    Run the learning mode simulation.
+    """
+    steer = 0       # Relative change in direction
+    step = 0
+    occupancy_grid_map = np.zeros(world.shape)
+    previous_time = time()
+
+    goal = (robot.x, robot.y, robot.theta)
+    while True:  # TODO: While not_in_goal(robot, goal)
+
+        print("Is in goal?:", is_in_goal(robot, goal))
+        if visualization is not None:
+            if not visualization.display(robot, occupancy_grid_map, mapping.LOG_ODD_MIN, mapping.LOG_ODD_MAX):
+                store_simulation_data_at_step(step)
+                exit(0)
+
+        # Calculate distance `s` based on MPS and timedelta
+        current_time = time()
+        distance_covered = SPEED_MPS * (current_time - previous_time)
+        previous_time = current_time
+
+        robot.move(distance_covered, np.radians(steer))
+
+        # Get current position in grid (pixel/cell wise)
+        map_scale_meters_per_pixel = scale  # TODO: move to map config?
+        map_pose = robot.pose_in_grid(map_scale_meters_per_pixel)
+        # Retrieve measurements from ultrasonic sensors
+        distance_measurements = sensors.sense(world, map_pose)
+
+        # Update occupancy grid map with new information
+        for angle, measurement in distance_measurements:
+            occupancy_grid_map = mapping.update_occupancy_map(
+                occupancy_grid_map,
+                map_pose,
+                measurement,
+                angle,
+                sensors.sonar_opening_angle,
+                sensors.z_max
+            )
+
+        # Convert sensor measurements back to meters
+        front, left, right = [distance * map_scale_meters_per_pixel
+                              for _, distance in distance_measurements]
+
+        steer = motion.follow_wall(front, left, right)
+        step += 1
+
+
 def main(parcours_filename):
 
     # Create a MapVisualizer to track the robots behaviour
@@ -79,12 +150,11 @@ def main(parcours_filename):
     robot = Robot()
     robot.set(2, 2, np.radians(90))
 
-    # Record the history of the robot
-    robot_history = list()
-
     # Start timing
-    prevtime = time()
+    simulate_learning_mode(
+        robot, mapbytes, sensors, viz.map_scale_meters_per_pixel, visualization=viz)
 
+    prevtime = time()
     change_direction = 0
 
     mode = MODE.WALL_FOLLOW
@@ -124,7 +194,6 @@ def main(parcours_filename):
 
         # Get current position in grid (pixel/cell wise)
         map_pose = robot.pose_in_grid(viz.map_scale_meters_per_pixel)
-        print("map_pose =>", map_pose)
         distance_measurements = sensors.sense(mapbytes, map_pose)
 
         # Update occupancy grid map with new information
@@ -142,82 +211,7 @@ def main(parcours_filename):
         if mode == MODE.WALL_FOLLOW:
             front, left, right = [distance * viz.map_scale_meters_per_pixel
                                   for _, distance in distance_measurements]
-            change_direction = follow_wall(front, left, right)
-
-    # Postprocessing
-
-
-def connect_pylons(positions, occupancy_grid_map, scale):
-    """
-    Connects pylons with lines, i.e. sets all pixels on that line to occupied.
-    """
-    for index, position in enumerate(positions):
-        next_index = (index + 1) % len(positions)
-        next_element = positions[next_index]
-
-        x1 = int(position[0] / scale)
-        y1 = int(position[1] / scale)
-        x2 = int(next_element[0] / scale)
-        y2 = int(next_element[1] / scale)
-        for x, y in bresenham(x1, y1, x2, y2):
-            occupancy_grid_map[y, x] = mapping.LOG_ODD_MAX
-
-    return occupancy_grid_map
-
-
-def follow_wall(front, left, right):
-    """Simple wall follower procedure.
-
-    Returns:
-        Change in direction.
-
-    """
-    change_direction = 0
-
-    F = (0 < front < 4)
-    L = (0 < left < 4)
-    R = (0 < right < 4)
-
-    print(f"=> Sensors: [front: {front}, left: {left}, right: {right}]")
-
-    if 0 < front < 3:
-        change_direction = -10
-    elif 1.0 <= left <= 2.0:
-        # we're good
-        change_direction = 0
-    elif 0 < left < 1.0:
-        change_direction = -10
-    elif left > 2.0:
-        change_direction = 10
-
-    return change_direction
-
-    # elif (F and L):
-    #    change_direction = -30
-
-    # robot_history.append(robot)
-
-    # TODO
-    # distance_measurements = [sensors.sense_distance(world, pose, angle, z_max=z_max)
-    #                          for angle in sonar_bearing_angles]
-
-    # for i, distance in enumerate(distance_measurements):
-    #     if distance == -1 or distance > z_max:
-    #         continue
-
-    #     occupancy_map = update_occupancy_map(
-    #         occupancy_map, pose, distance, sonar_bearing_angles[i], sonar_opening_angle, z_max)
-
-    # occupancy_map = np.clip(
-    #     occupancy_map, a_max=LOG_ODD_MAX / 10, a_min=LOG_ODD_MIN / 10)
-
-    # 3D Plot
-    # data = occupancy_map
-    # X, Y = np.meshgrid(x, y)
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.plot_surface(X, Y, data, rstride=1, cstride=1)
-    # plt.show(block=True)
+            change_direction = motion.follow_wall(front, left, right)
 
 
 if __name__ == "__main__":

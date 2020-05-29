@@ -6,6 +6,26 @@ from math import floor
 from stellar.perception.sensors import get_occupied_cell_from_distance
 
 
+def connect_pylons(positions, occupancy_grid_map):
+    """
+    Connects pylons with lines, i.e. sets all pixels on that line to occupied.
+    """
+    for index, position in enumerate(positions):
+        next_index = (index + 1) % len(positions)
+        next_element = positions[next_index]
+
+        x1 = int(position[0])
+        y1 = int(position[1])
+        x2 = int(next_element[0])
+        y2 = int(next_element[1])
+        for x, y in bresenham(x1, y1, x2, y2):
+            occupancy_grid_map[y, x] = mapping.LOG_ODD_MAX
+            occupancy_grid_map[y+1, x] = mapping.LOG_ODD_MAX
+            occupancy_grid_map[y, x+1] = mapping.LOG_ODD_MAX
+
+    return occupancy_grid_map
+
+
 def inverse_range_sensor_model(cell, pose, relative_sensor_angle, beta, z_max, z_t):
     """
     Args:
@@ -97,8 +117,8 @@ def update_occupancy_map(gridmap, pose, measurement, sonar_bearing_angle, sonar_
 
     max_x, min_x, max_y, min_y = fov_bounding_box(pose, B, C)
 
-    #gridmap[min_y:max_y, min_x:max_x] = 10
-    #print(max_y, min_y)
+    # gridmap[min_y:max_y, min_x:max_x] = 10
+    # print(max_y, min_y)
     if pose[1] <= gridmap.shape[0] and pose[0] <= gridmap.shape[1]:
         gridmap[pose[1], pose[0]] -= LOG_ODD_FREE
     for y in range(min_y, min(max_y, gridmap.shape[0])):
