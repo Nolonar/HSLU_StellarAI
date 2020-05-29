@@ -18,9 +18,9 @@ bresenham = "*"
 stellarai = {editable = true,path = "."}
 matplotlib = "*"
 scipy = "*"
-skimage = "*"
 scikit-image = "*"
 pypng = "*"
+hypothesis = "*"
 
 [requires]
 python_version = "3.8"
