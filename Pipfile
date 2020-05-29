@@ -18,7 +18,6 @@ bresenham = "*"
 stellarai = {editable = true,path = "."}
 matplotlib = "*"
 scipy = "*"
-roboviz = {editable = true,path = "./PyRoboViz"}
 skimage = "*"
 scikit-image = "*"
 pypng = "*"

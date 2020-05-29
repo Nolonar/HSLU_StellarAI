@@ -77,7 +77,7 @@ def main(parcours_filename):
 
     # Initialize our robot with an initial pose
     robot = Robot()
-    robot.set(2, 2, 90)
+    robot.set(2, 2, np.radians(90))
 
     # Record the history of the robot
     robot_history = list()
@@ -104,8 +104,8 @@ def main(parcours_filename):
     while True:
         step += 1
 
-        occupancy_grid_map = connect_pylons(
-            pylons, occupancy_grid_map, viz.map_scale_meters_per_pixel)
+        # occupancy_grid_map = connect_pylons(
+        #    pylons, occupancy_grid_map, viz.map_scale_meters_per_pixel)
         if not viz.display(robot, occupancy_grid_map, mapping.LOG_ODD_MIN, mapping.LOG_ODD_MAX):
             with open(f"logs/ogm_savefile_{step}.np", 'wb+') as fd:
                 np.save(fd, occupancy_grid_map)
@@ -115,20 +115,16 @@ def main(parcours_filename):
         s = SPEED_MPS * (currtime - prevtime)
         prevtime = currtime
 
-        # Set new pose
-        if change_direction:
-            new_direction = robot.theta + change_direction
-        else:
-            new_direction = robot.theta
-
-        robot = robot.move(s, new_direction)
+        robot.move(s, np.radians(change_direction))
+        print(robot)
 
         # Display the pylons
-        [viz.show_pylon((x, y)) for x, y in pylons]
+        # [viz.show_pylon((x, y)) for x, y in pylons]
         # Capture distance measurements from sonar sensors
 
         # Get current position in grid (pixel/cell wise)
         map_pose = robot.pose_in_grid(viz.map_scale_meters_per_pixel)
+        print("map_pose =>", map_pose)
         distance_measurements = sensors.sense(mapbytes, map_pose)
 
         # Update occupancy grid map with new information
@@ -152,6 +148,9 @@ def main(parcours_filename):
 
 
 def connect_pylons(positions, occupancy_grid_map, scale):
+    """
+    Connects pylons with lines, i.e. sets all pixels on that line to occupied.
+    """
     for index, position in enumerate(positions):
         next_index = (index + 1) % len(positions)
         next_element = positions[next_index]
@@ -179,10 +178,7 @@ def follow_wall(front, left, right):
     L = (0 < left < 4)
     R = (0 < right < 4)
 
-    print("=> front", front)
-    print("=> left", left)
-    print("=> right", right)
-    print("-----")
+    print(f"=> Sensors: [front: {front}, left: {left}, right: {right}]")
 
     if 0 < front < 3:
         change_direction = -10
@@ -226,7 +222,7 @@ def follow_wall(front, left, right):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--parcours",
+    parser.add_argument("--parcours", required=True,
                         help="Path to parcours image.")
     args = parser.parse_args()
 

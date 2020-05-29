@@ -3,18 +3,24 @@ import numpy as np
 
 
 class Robot:
-    """Simple robot model."""
+    """
+    Simple model for our robot.
+    """
 
     def __init__(self):
-        self.x = 0
-        self.y = 0
-        self.theta = 0
+        """
+        Initalize the robot with the starting values of (0, 0, 0) for 
+        position (x, y) and orientation (theta).
+        """
+        self.x = 0.0
+        self.y = 0.0
+        self.theta = 0.0
 
     def pose_in_grid(self, scale):
         """Converts the pose to the current position in the gridmap."""
         xr = int(self.x / scale)
         yr = int(self.y / scale)
-        theta = np.radians(self.theta)
+        theta = self.theta
 
         return (xr, yr, theta)
 
@@ -33,32 +39,29 @@ class Robot:
             direction = max_steering
         if direction < -max_steering:
             direction = -max_steering
+
         if distance < 0.0:
             distance = 0.0
 
-        a = direction + self.theta
-        x = self.x + (np.cos(a) * distance)
-        y = self.y + (np.sin(a) * distance)
+        self.theta += direction
+        self.x = self.x + (np.cos(self.theta) * distance)
+        self.y = self.y + (np.sin(self.theta) * distance)
 
-        robot = Robot()
-        robot.set(x, y, a)
-        return robot
-
-    def set(self, new_x: float, new_y: float, new_theta: float):
-        """Set the current robots pose.
+    def set(self, x: float, y: float, theta: float):
+        """Change the robots current pose.
 
         Args:
-            new_x: New x coordinate
-            new_y: New y coordinate
-            new_theta: New theta (orientation) in degrees.
+            x: New x coordinate
+            y: New y coordinate
+            theta: New theta (orientation) in radians.
 
         Raises:
             ValueError if the new coordinates or theta is not possible.
 
         """
-        self.x = float(new_x)
-        self.y = float(new_y)
-        self.theta = float(new_theta)
+        self.x = float(x)
+        self.y = float(y)
+        self.theta = float(theta)
 
     def __str__(self):
         return f"Robot[x: {self.x}, y: {self.y}, theta: {self.theta}]"
