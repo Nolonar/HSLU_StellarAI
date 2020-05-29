@@ -282,8 +282,9 @@ class PylonDetector:
     @staticmethod
     def set_distance_estimation(image_height: int, pylons: List[Pylon]):
         for pylon in pylons:
+            pylon_height = pylon.height if not pylon.is_start_pylon else pylon.width
             pylon.estimated_distance_cm = PylonDetector.get_distance_estimation(
-                image_height, pylon.height)
+                image_height, pylon_height)
 
     @staticmethod
     def get_distance_estimation(image_height: int, pylon_height: int) -> float:
