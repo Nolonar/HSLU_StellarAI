@@ -31,7 +31,7 @@ def motion_model_4():
     ]
 
 
-class GridPlaner:
+class AStarPlanner:
 
     def __init__(self):
         pass

@@ -39,7 +39,6 @@ def test_in_goal_respects_min_distance():
     Otherwise, it might signal that the robot has reached its goal
     before actually driving somewhere.
     """
-
     robot = Robot()
     robot.set(0, 0, np.pi / 2)
     robot.move(1, 0)

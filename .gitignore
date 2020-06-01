@@ -3,6 +3,7 @@
 # Edit at https://www.gitignore.io/?templates=vim,code,python,virtualenv
 
 ### Code ###
+backup*.py
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json

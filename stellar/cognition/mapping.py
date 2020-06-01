@@ -1,9 +1,19 @@
 """
 Contains implementations of the mapping algorithms.
 """
-import numpy as np
 from math import floor
+
+import numpy as np
+from bresenham import bresenham
+
 from stellar.perception.sensors import get_occupied_cell_from_distance
+
+
+LOG_ODD_MAX = 5
+LOG_ODD_MIN = -2.5
+
+LOG_ODD_OCCU = 1
+LOG_ODD_FREE = 0.4
 
 
 def connect_pylons(positions, occupancy_grid_map):
@@ -19,9 +29,9 @@ def connect_pylons(positions, occupancy_grid_map):
         x2 = int(next_element[0])
         y2 = int(next_element[1])
         for x, y in bresenham(x1, y1, x2, y2):
-            occupancy_grid_map[y, x] = mapping.LOG_ODD_MAX
-            occupancy_grid_map[y+1, x] = mapping.LOG_ODD_MAX
-            occupancy_grid_map[y, x+1] = mapping.LOG_ODD_MAX
+            occupancy_grid_map[y, x] = LOG_ODD_MAX
+            occupancy_grid_map[y+1, x] = LOG_ODD_MAX
+            occupancy_grid_map[y, x+1] = LOG_ODD_MAX
 
     return occupancy_grid_map
 
@@ -68,13 +78,6 @@ def inverse_range_sensor_model(cell, pose, relative_sensor_angle, beta, z_max, z
         return 1
     else:  # r <= z_t
         return -1
-
-
-LOG_ODD_MAX = 5
-LOG_ODD_MIN = -2.5
-
-LOG_ODD_OCCU = 1
-LOG_ODD_FREE = 0.4
 
 
 def update_occupancy_map(gridmap, pose, measurement, sonar_bearing_angle, sonar_opening_angle, z_max):

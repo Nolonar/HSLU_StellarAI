@@ -7,14 +7,17 @@ import argparse
 import sys
 from time import time
 from enum import Enum
+from functools import partial
 
 import numpy as np
 from roboviz import MapVisualizer
 from skimage.transform import resize
 from bresenham import bresenham
+from tqdm import tqdm
+
 
 from stellar.action import motion
-from stellar.cognition import mapping
+from stellar.cognition import mapping, planning, tracking
 from stellar.models.astar import AStarPlanner
 from stellar.models.gridmap import OccupancyGridMap
 from stellar.models.robot import Robot
@@ -72,22 +75,33 @@ def simulate_learning_mode(robot: Robot, world: np.ndarray, sensors: SensorArray
                            scale: float, visualization: MapVisualizer = None):
     """
     Run the learning mode simulation.
+
+    Returns:
+        The simulation returns a tuple consisting of the constructed
+        occupancy grid map, the robots configuration and the history
+        of its positions.
+
     """
     steer = 0       # Relative change in direction
     step = 0
     occupancy_grid_map = np.zeros(world.shape)
     previous_time = time()
+    history = list()
 
-    goal = (robot.x, robot.y, robot.theta)
-    while True:  # TODO: While not_in_goal(robot, goal)
+    goal = (2.5, 2.5)
+    robot_is_in_goal = partial(robot.in_goal,
+                               min_distance=5.0,
+                               proximity=2.0)
 
-        print("Is in goal?:", is_in_goal(robot, goal))
+    progress_bar = tqdm(total=5000)
+    while not robot_is_in_goal(goal):
+        progress_bar.update(1)
         if visualization is not None:
             if not visualization.display(robot, occupancy_grid_map, mapping.LOG_ODD_MIN, mapping.LOG_ODD_MAX):
-                store_simulation_data_at_step(step)
+                store_simulation_data_at_step(step, occupancy_grid_map)
                 exit(0)
 
-        # Calculate distance `s` based on MPS and timedelta
+        # Calculate distance based on MPS and timedelta
         current_time = time()
         distance_covered = SPEED_MPS * (current_time - previous_time)
         previous_time = current_time
@@ -117,6 +131,178 @@ def simulate_learning_mode(robot: Robot, world: np.ndarray, sensors: SensorArray
 
         steer = motion.follow_wall(front, left, right)
         step += 1
+        history.append((robot.x, robot.y))
+
+    return (occupancy_grid_map, robot, history)
+
+
+class Postprocessing:
+
+    @staticmethod
+    def connect_pylons(occupancy_grid_map, positions):
+        """
+        Connects pylons with lines, i.e. sets all pixels on that line to occupied.
+        """
+        for index, position in enumerate(positions):
+            next_index = (index + 1) % len(positions)
+            next_element = positions[next_index]
+
+            x1 = int(position[0])
+            y1 = int(position[1])
+            x2 = int(next_element[0])
+            y2 = int(next_element[1])
+            for x, y in bresenham(x1, y1, x2, y2):
+                occupancy_grid_map[y, x] = mapping.LOG_ODD_MAX
+                occupancy_grid_map[y+1, x] = mapping.LOG_ODD_MAX
+                occupancy_grid_map[y, x+1] = mapping.LOG_ODD_MAX
+
+        return occupancy_grid_map
+
+
+def contest(datafile):
+    import matplotlib.pyplot as plt
+
+    # TODO: This should be part of a recorded track
+    pylons = [
+        (50, 75),
+        (75, 150),
+        (150, 150),
+        (100, 75),
+        (60, 50)
+    ]
+
+    occupancy_grid_map = np.load(datafile)
+
+    occupancy_grid_map = Postprocessing.connect_pylons(occupancy_grid_map,
+                                                       pylons)
+
+    planner = planning.AStarPlanner()
+
+    # Sample waypoints to direct A*
+    robot_history = [
+        (40, 100),
+        (40, 150),
+        (100, 170),
+        (170, 170),
+        (160, 130),
+        (145, 100),
+        (130, 70),
+        (60, 30),
+        (25, 25),
+    ]
+
+    should_plot_waypoints = False
+    [plt.plot(x, y, marker='x')
+     for x, y in robot_history if should_plot_waypoints]
+
+    path = list()
+    to_ = None
+    from_ = (25, 25)
+    for waypoint in robot_history:
+        to_ = waypoint
+        print(from_, "=>", to_)
+        planned_path = planner.plan(occupancy_grid_map, from_, to_)
+        path.extend(planned_path)
+        from_ = waypoint
+
+    # path = planner.plan(occupancy_grid_map, (25, 25), robot_history[0])
+    # path_second = planner.plan(occupancy_grid_map, path[-1], robot_history[1])
+    # path.extend(path_second)
+    path = planner.smoothen(occupancy_grid_map, path)
+    path_arr = np.array(path)
+    plt.plot(path_arr[:, 0], path_arr[:, 1], 'y')
+
+    plt.imshow(occupancy_grid_map, origin='lower', cmap='gray')
+    #plt.plot(25, 25, marker='o')
+    # plt.show(block=True)
+
+    # Robot
+    robot = Robot()
+    robot.set(25, 25, np.radians(90))
+
+    #params, err = twiddle(path, 200)
+    #print(params, err)
+    #tau_p, tau_d, tau_i = params
+    tau_p = 0.001
+    tau_d = 1
+    tau_i = 0
+
+    xt, yt, err = run(robot, path, tau_p, tau_d, tau_i, n=500)
+    for x, y in zip(xt, yt):
+        plt.plot(x, y, marker='o')
+
+    plt.imshow(occupancy_grid_map, origin='lower', cmap='gray')
+    #plt.plot(25, 25, marker='o')
+    plt.show(block=True)
+
+
+def run(robot, reference, tau_p, tau_d, tau_i, n=100, speed=1.0):
+    """Run the robot simulation."""
+    x_trajectory = []
+    y_trajectory = []
+
+    reference = np.array(reference)
+
+    previous_crosstrack_error = tracking.cte(robot, reference, 0)
+    integral_cte = 0.0
+    steer = robot.theta
+    err = 0
+    for t in range(n):
+        crosstrack_error = tracking.cte(robot, reference, t)
+
+        differential_cte = (crosstrack_error - previous_crosstrack_error)
+        previous_crosstrack_error = crosstrack_error
+        integral_cte += crosstrack_error
+
+        steer = (-tau_p * crosstrack_error - tau_d *
+                 differential_cte - tau_i * integral_cte)
+
+        #steer = np.radians(steer)
+        print(
+            f"[steer: {steer:.4f}\tcte: {crosstrack_error:.4f}, robot: {robot}]")
+        # print(steer)
+        robot.move(speed, steer)
+        err += crosstrack_error
+
+        x_trajectory.append(robot.x)
+        y_trajectory.append(robot.y)
+
+    return x_trajectory, y_trajectory, err / n
+
+
+def twiddle(path, n, tol=0.1):
+    p = [0, 0, 0.0]
+    dp = [1.0, 1.0, 1.0]
+    robot = Robot()
+    robot.set(25, 25, np.radians(90))
+    x_trajectory, y_trajectory, best_err = run(robot, path, *p, n=n)
+
+    it = 0
+    while sum(dp) > tol:
+        print("Iteration {}, best error = {}, dp = {}".format(
+            it, best_err, sum(dp)))
+        for i in range(len(p)):
+            p[i] += dp[i]
+            robot = Robot()
+            robot.set(25, 25, np.radians(90))
+            x_trajectory, y_trajectory, err = run(robot, path, *p, n=n)
+
+            if err < best_err:
+                best_err = err
+                dp[i] *= 1.1
+            else:
+                p[i] -= 2 * dp[i]
+
+                x_trajectory, y_trajectory, err = run(robot, path, *p, n=n)
+
+                if err < best_err:
+                    best_err = err
+                    dp[i] *= 1.1
+                else:
+                    p[i] += dp[i]
+                    dp[i] *= 0.9
+        it += 1
+    return p, best_err
 
 
 def main(parcours_filename):
@@ -150,77 +336,58 @@ def main(parcours_filename):
     robot = Robot()
     robot.set(2, 2, np.radians(90))
 
-    # Start timing
-    simulate_learning_mode(
+    # Start learning drive
+    occupancy_grid_map, robot, history = simulate_learning_mode(
         robot, mapbytes, sensors, viz.map_scale_meters_per_pixel, visualization=viz)
 
-    prevtime = time()
-    change_direction = 0
+    print("=> Terminated learning mode. Post-processing collected information...")
 
-    mode = MODE.WALL_FOLLOW
+    # Post-process gathered information
+    #   1. Connect pylons to form inner track boundary
+    sampled_pylon_positions = [
+        (50, 75), (75, 150), (150, 150), (100, 75), (60, 50)]
 
-    # Enter main loop
-    step = 0
-    print("=> Driving in Mode: ", mode.name)
+    occupancy_grid_map = mapping.connect_pylons(
+        sampled_pylon_positions, occupancy_grid_map)
 
-    pylons = [
-        (5.0, 7.5),
-        (7.5, 15.0),
-        (15.0, 15.0),
-        (12.5, 10.0),
-        (10.0, 6.0)
-    ]
+    # 2. Plan path through track
+    path = list()
+    path_planner = planning.GridPlaner()
+    _to, _from = None, (robot.x, robot.y)
+    for waypoint in history:
+        _to = waypoint
+        print(_from, "=>", _to)
+        segment = planner.plan(occupancy_grid_map, _from, _to)
+        path.extend(segment)
+        _from = waypoint
 
-    while True:
-        step += 1
+    #   3. Optimize (i.e. smooth) track
 
-        # occupancy_grid_map = connect_pylons(
-        #    pylons, occupancy_grid_map, viz.map_scale_meters_per_pixel)
-        if not viz.display(robot, occupancy_grid_map, mapping.LOG_ODD_MIN, mapping.LOG_ODD_MAX):
-            with open(f"logs/ogm_savefile_{step}.np", 'wb+') as fd:
-                np.save(fd, occupancy_grid_map)
-            exit(0)
-
-        currtime = time()
-        s = SPEED_MPS * (currtime - prevtime)
-        prevtime = currtime
-
-        robot.move(s, np.radians(change_direction))
-        print(robot)
-
-        # Display the pylons
-        # [viz.show_pylon((x, y)) for x, y in pylons]
-        # Capture distance measurements from sonar sensors
-
-        # Get current position in grid (pixel/cell wise)
-        map_pose = robot.pose_in_grid(viz.map_scale_meters_per_pixel)
-        distance_measurements = sensors.sense(mapbytes, map_pose)
-
-        # Update occupancy grid map with new information
-        for angle, measurement in distance_measurements:
-            occupancy_grid_map = mapping.update_occupancy_map(
-                occupancy_grid_map,
-                map_pose,
-                measurement,
-                angle,
-                sonar_opening_angle,
-                z_max
-            )
-
-        # Update robots pose
-        if mode == MODE.WALL_FOLLOW:
-            front, left, right = [distance * viz.map_scale_meters_per_pixel
-                                  for _, distance in distance_measurements]
-            change_direction = motion.follow_wall(front, left, right)
+    # Start contest mode
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--parcours", required=True,
-                        help="Path to parcours image.")
+    parser = argparse.ArgumentParser(description='Stellar CLI')
+
+    subparsers = parser.add_subparsers(dest='mode')
+    # Run simulation for learning mode
+    learn_mode_args = subparsers.add_parser('learn')
+    learn_mode_args.add_argument('--parcours', required=True,
+                                 help="Path to parcours image.")
+
+    # Run contest mode from prerecorded data
+    contest_mode_args = subparsers.add_parser('contest')
+    contest_mode_args.add_argument('--datafile', required=True,
+                                   help='Path to the datafile.')
+
     args = parser.parse_args()
 
     try:
-        main(args.parcours)
+        if args.mode == 'learn':
+            main(args.parcours)
+        elif args.mode == 'contest':
+            contest(args.datafile)
+        else:
+            print(f"Unknown mode: {args.mode}. Stopping.")
     except KeyboardInterrupt:
         sys.exit(1)

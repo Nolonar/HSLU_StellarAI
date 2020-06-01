@@ -25,15 +25,16 @@ class Robot:
             goal: x- and y coordinates of the goal position.
             proximity: Proximity to the goal position.
             min_distance: Minimum distance covered by the robot before
-                          being eligible
+                          being eligible for being in goal position.
         """
         if self.total_distance_covered < min_distance:
             return False
 
-        xg, yg = goal
+        goal_x, goal_y = goal
 
-        x_in_goal = xg - proximity <= self.x <= xg + proximity
-        y_in_goal = yg - proximity <= self.y <= yg + proximity
+        x_in_goal = goal_x - proximity <= self.x <= goal_x + proximity
+        y_in_goal = goal_y - proximity <= self.y <= goal_y + proximity
+
         return x_in_goal and y_in_goal
 
     def pose_in_grid(self, scale):
