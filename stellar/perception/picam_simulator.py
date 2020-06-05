@@ -12,13 +12,19 @@ class PicamSimulator:
 
     def run(self):
         while self.is_running:
-            got_frame, frame = self.stream.read()
+            has_frame, frame = self.get_next_frame()
 
-            if got_frame:
-                frame = self.rotate_frame(frame)
-                self.current_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            if has_frame:
+                self.current_frame = frame
 
-            self.is_running = got_frame
+            self.is_running = has_frame
+
+    def get_next_frame(self):
+        has_frame, frame = self.stream.read()
+        if has_frame:
+            frame = cv2.cvtColor(self.rotate_frame(frame), cv2.COLOR_BGR2HSV)
+
+        return has_frame, frame
 
     @staticmethod
     def rotate_frame(frame):
