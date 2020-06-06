@@ -124,7 +124,7 @@ class AStarPlanner:
         # Create a deep copy of the path
         smoothed_path = deepcopy(path)
 
-        weight_data = 0.1
+        weight_data = 0.01
         weight_smooth = 0.8
         tolerance = 0.0000001
 
@@ -153,3 +153,16 @@ class AStarPlanner:
                 break
 
         return smoothed_path
+
+
+def get_nearest_point(robot, aa):
+    r = (robot.x, robot.y)
+    a = [edist(k, r) for k in list(reference_trajectory)]
+    i = np.argmin(a)
+
+    p1 = reference_trajectory[i]
+    p2 = reference_trajectory[i+5]
+
+    aaa = np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
+    print(f"l => {aaa:.4f}, {p1}, {p2}")
+    return reference_trajectory[i]

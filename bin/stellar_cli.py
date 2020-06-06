@@ -183,12 +183,24 @@ def contest(datafile):
         (40, 100),
         (40, 150),
         (100, 170),
+        (160, 175),
         (170, 170),
         (160, 130),
         (145, 100),
         (130, 70),
         (60, 30),
         (25, 25),
+    ]
+
+    robot_history = [
+        (40, 100),
+        (40, 150),
+        (160, 165),
+        (160, 164),
+        (160, 163),
+        (165, 140),
+        (165, 130),
+        (25,  25)
     ]
 
     should_plot_waypoints = False
@@ -225,21 +237,25 @@ def contest(datafile):
     #tau_p, tau_d, tau_i = params
     tau_p = 0.001
     tau_d = 1
-    tau_i = 0
+    tau_i = 0.0001
 
-    xt, yt, err = run(robot, path, tau_p, tau_d, tau_i, n=500)
-    for x, y in zip(xt, yt):
-        plt.plot(x, y, marker='o')
+    # xt, yt, err = run(robot, path, tau_p, tau_d, tau_i,
+    #   n=500, world=occupancy_grid_map)
+    # for x, y in zip(xt, yt):
+    # plt.plot(x, y, marker='o')
 
-    plt.imshow(occupancy_grid_map, origin='lower', cmap='gray')
+    # plt.imshow(occupancy_grid_map, origin='lower', cmap='gray')
     #plt.plot(25, 25, marker='o')
     plt.show(block=True)
 
 
-def run(robot, reference, tau_p, tau_d, tau_i, n=100, speed=1.0):
+def run(robot, reference, tau_p, tau_d, tau_i, n=100, speed=1.0, world=None):
     """Run the robot simulation."""
     x_trajectory = []
     y_trajectory = []
+
+    viz = MapVisualizer(MAP_SIZE_PIXELS, MAP_SIZE_METERS,
+                        'StellarAI Visualization', True, reference_trajectory=np.array(reference))
 
     reference = np.array(reference)
 
@@ -248,6 +264,10 @@ def run(robot, reference, tau_p, tau_d, tau_i, n=100, speed=1.0):
     steer = robot.theta
     err = 0
     for t in range(n):
+        if t % 5 == 0:
+            print("UPDATE")
+            viz.display(robot, world, mapping.LOG_ODD_MIN, mapping.LOG_ODD_MAX)
+
         crosstrack_error = tracking.cte(robot, reference, t)
 
         differential_cte = (crosstrack_error - previous_crosstrack_error)

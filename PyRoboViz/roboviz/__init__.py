@@ -62,7 +62,7 @@ class Visualizer(object):
         x, y = target
         self.ax.plot(x, y, marker='x', color='red')
 
-    def _init(self, map_size_pixels, map_size_meters, title, shift, show_trajectory=False, zero_angle=0):
+    def _init(self, map_size_pixels, map_size_meters, title, shift, show_trajectory=False, zero_angle=0, reference_trajectory=None):
 
         # Store constants for update
         map_size_meters = map_size_meters
@@ -92,6 +92,10 @@ class Visualizer(object):
         self.ax = fig.gca()
         self.ax.set_xlabel('X (m)')
         self.ax.set_ylabel('Y (m)')
+
+        if reference_trajectory is not None:
+            self.ax.plot(
+                reference_trajectory[:, 0], reference_trajectory[:, 1], 'r')
 
         # Hence we must relabel the axis ticks to show millimeters
         # + 100 to show endpoints
@@ -157,7 +161,7 @@ class Visualizer(object):
 
         self.vehicle = self.ax.arrow(x_m/s, y_m/s,
                                      dx, dy, head_width=Visualizer.ROBOT_WIDTH_M/s,
-                                     head_length=Visualizer.ROBOT_HEIGHT_M/s, fc='r', ec='r')
+                                     head_length=Visualizer.ROBOT_HEIGHT_M/s, fc='r', ec='r', zorder=5)
 
         # Show trajectory if indicated
         currpos = self._m2pix(x_m, y_m)
@@ -197,14 +201,15 @@ class Visualizer(object):
 
 class MapVisualizer(Visualizer):
 
-    def __init__(self, map_size_pixels, map_size_meters, title='MapVisualizer', show_trajectory=False):
+    def __init__(self, map_size_pixels, map_size_meters, title='MapVisualizer', show_trajectory=False, reference_trajectory=None):
 
         # Put origin in lower left; disallow zero-angle setting
         Visualizer._init(self, map_size_pixels, map_size_meters,
-                         title, 0, show_trajectory, 0)
+                         title, 0, show_trajectory, 0, reference_trajectory=reference_trajectory)
 
     def display(self, robot, mapbytes, vmin, vmax):
-        self._setPose(robot.x, robot.y, np.degrees(robot.theta))
+        x, y = self._pix2m(robot.x, robot.y)
+        self._setPose(x, y, np.degrees(robot.theta))
 
         # Pause to allow display to refresh
 
@@ -214,5 +219,5 @@ class MapVisualizer(Visualizer):
         else:
             self.img_artist.set_data(mapbytes)
 
-        plt.pause(.01)
+        # plt.pause(.01)
         return self._refresh()
