@@ -42,7 +42,7 @@ MARKING_COLOR_START_PYLON = [30, 255, 255]
 MARKING_COLOR_REGULAR_PYLON = [0, 255, 255]
 
 # Used for distance estimation. Determined through measurement.
-DISTANCE_ESTIMATE_MAGIC_NUMBER = 80.0 / 2.8
+DISTANCE_ESTIMATE_MAGIC_NUMBER = 80.0 * 1105 / 3096
 
 # Debug only: used to give debug images unique names between different test of the same test run.
 run_id = 0
@@ -288,5 +288,5 @@ class PylonDetector:
 
     @staticmethod
     def get_distance_estimation(image_height: int, pylon_height: int) -> float:
-        pylon_height_rate = float(pylon_height) / float(image_height)
-        return DISTANCE_ESTIMATE_MAGIC_NUMBER / pylon_height_rate
+        pylon_height_rate = float(image_height) / float(pylon_height)
+        return DISTANCE_ESTIMATE_MAGIC_NUMBER * pylon_height_rate
