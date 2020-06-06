@@ -42,6 +42,18 @@ Aims to solve following problems:
 * Allowing introspection into the inner-workings of stellar
 * Forward information to the debug UI.
 
+#### How to run
+
+```sh
+$ pipenv run python stellar/observatory/server.py
+```
+
+
+### Communication
+
+Provides the infrastructure for modules to communicate with each other.
+
+
 # Getting started
 
 ## Dependencies
@@ -57,5 +69,5 @@ $ pipenv install --dev
 
 This project is using the pytest framework. To run the tests:
 ```sh
-$ pipenv run pytest tests/
+$ pipenv run python -m pytest tests/
 ```
