@@ -7,11 +7,21 @@ verify_ssl = true
 pytest = "*"
 pylint = "*"
 msgpack = "*"
-autopep8 = "*"
 matplotlib = "*"
+pypng = "*"
+jupyter = "*"
 
 [packages]
 numpy = "*"
+tqdm = "*"
+bresenham = "*"
+stellarai = {editable = true,path = "."}
+matplotlib = "*"
+scipy = "*"
+scikit-image = "*"
+pypng = "*"
+hypothesis = "*"
+pytest = "*"
 
 [requires]
 python_version = "3.8"
