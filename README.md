@@ -1,3 +1,7 @@
+**Note**: This repository has been migrated from GitLab including commit history and will not be maintained beyond the addition of this notice. A newer and more polished version of the StellarAI repository can be found here: https://github.com/strfx/stellar
+
+---
+
 # Stellar
 
 Stellar is the main software behind the fantastic Hyperion autonomous mobile robot.
